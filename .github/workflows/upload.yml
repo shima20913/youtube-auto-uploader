@@ -1,0 +1,91 @@
+name: YouTube Auto Upload
+
+on:
+  schedule:
+    # 毎日12時(JST) = 3時(UTC)
+    - cron: '0 3 * * *'
+    # 毎日18時(JST) = 9時(UTC)
+    - cron: '0 9 * * *'
+  
+  # 手動実行を許可
+  workflow_dispatch:
+    inputs:
+      genre:
+        description: 'ジャンル (horror/trivia/satisfying/random)'
+        required: false
+        default: 'random'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: チェックアウト
+      uses: actions/checkout@v3
+    
+    - name: Pythonセットアップ
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 依存関係インストール
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        
+        # ImageMagickをインストール (MoviePy用)
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+        
+        # ImageMagickのポリシーを設定 (PDF制限を解除)
+        sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml
+    
+    - name: 認証情報を設定
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      run: |
+        # .envファイルを作成
+        echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> .env
+        echo "PEXELS_API_KEY=${PEXELS_API_KEY}" >> .env
+        echo "DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}" >> .env
+        
+        # YouTube認証情報を作成
+        echo "${YOUTUBE_CLIENT_SECRET}" > client_secret.json
+    
+    - name: YouTube認証トークンを復元
+      uses: actions/cache@v3
+      with:
+        path: token.pickle
+        key: youtube-token-${{ github.sha }}
+        restore-keys: |
+          youtube-token-
+    
+    - name: 動画生成・アップロード
+      run: |
+        cd src
+        python main.py --genre ${{ github.event.inputs.genre || 'random' }}
+    
+    - name: YouTube認証トークンを保存
+      uses: actions/cache@v3
+      with:
+        path: token.pickle
+        key: youtube-token-${{ github.sha }}
+    
+    - name: エラー通知
+      if: failure()
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        curl -H "Content-Type: application/json" \
+             -d '{"embeds":[{"title":"❌ GitHub Actions エラー","description":"動画生成・アップロードに失敗しました","color":16711680,"fields":[{"name":"ワークフロー","value":"${{ github.workflow }}"},{"name":"実行ID","value":"${{ github.run_id }}"}]}]}' \
+             $DISCORD_WEBHOOK_URL
+    
+    - name: 一時ファイルをクリーンアップ
+      if: always()
+      run: |
+        rm -rf src/output/*
+        rm -rf cache/*

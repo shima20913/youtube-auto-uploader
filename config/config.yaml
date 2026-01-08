@@ -1,0 +1,27 @@
+schedule:
+  times: ["12:00", "18:00"]
+  timezone: "Asia/Tokyo"
+
+genres:
+  - horror
+  - trivia
+  - satisfying
+
+video:
+  duration: 60
+  resolution: [1080, 1920]  # 縦型(9:16)
+  fps: 30
+  format: "mp4"
+
+youtube:
+  category: "24"  # Entertainment
+  privacy: "public"
+  made_for_kids: false
+
+tts:
+  language: "ja"
+  slow: false
+
+assets:
+  cache_dir: "./cache"
+  max_cache_size: 100  # MB
