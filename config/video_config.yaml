@@ -1,0 +1,19 @@
+video:
+  resolution: [1080, 1920]  # 縦型 (width, height)
+  fps: 30
+  duration:
+    opening: 6  # オープニングの長さ（秒）
+    choice: 8   # 各選択肢の長さ（秒）
+    ending: 5   # エン ディングの長さ（秒）
+
+text_overlay:
+  font: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  colors:
+    primary: "#FFFFFF"      # メインテキストの色
+    accent: "#FFD700"       # アクセントカラー（金色）
+    background: "rgba(0,0,0,0.7)"  # テキスト背景色
+
+audio:
+  bgm_volume: 0.3          # BGMの音量（0.0〜1.0）
+  narration_volume: 0.8    # ナレーションの音量
+  sfx_volume: 0.5          # 効果音の音量

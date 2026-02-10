@@ -1,202 +1,229 @@
 """
-メインスクリプト
-動画生成から投稿までの全プロセスを統合
+メインスクリプト（選択式質問動画用）
+質問生成から動画作成、投稿までの全プロセスを統合
 """
 
 import os
 import sys
 import argparse
-import random
 from datetime import datetime
 from pathlib import Path
 
-from content_generator import get_generator
-from tts_engine import TTSEngine
-from asset_manager import AssetManager
-from video_creator import VideoCreator
+from question_generator import QuestionGenerator
+from ai_video_generator import AIVideoGenerator
+from video_creator import QuestionVideoCreator
 from youtube_uploader import YouTubeUploader
 from discord_notifier import DiscordNotifier
 
 
-class YouTubeAutoUploader:
-    """YouTube自動投稿システム"""
+class QuestionVideoAutoUploader:
+    """選択式質問動画自動投稿システム"""
     
     def __init__(self):
         """初期化"""
-        self.content_generator = None
-        self.tts_engine = TTSEngine()
-        self.asset_manager = AssetManager()
-        self.video_creator = VideoCreator()
+        self.question_generator = QuestionGenerator()
+        self.ai_video_generator = AIVideoGenerator()
+        self.video_creator = QuestionVideoCreator()
         self.youtube_uploader = None
         self.discord_notifier = None
         
         # 出力ディレクトリ
         self.output_dir = Path("output")
         self.output_dir.mkdir(exist_ok=True)
+        
+        # 一時ディレクトリ（AI生成動画用）
+        self.temp_dir = self.output_dir / "temp"
+        self.temp_dir.mkdir(exist_ok=True)
     
-    def generate_and_upload(self, genre: str, test_mode: bool = False) -> dict:
+    def generate_and_upload(self, category: str = None, test_mode: bool = False) -> dict:
         """
         動画を生成してアップロード
         
         Args:
-            genre: ジャンル (horror, trivia, satisfying)
+            category: 質問カテゴリ（省略時はランダム）
             test_mode: テストモード (アップロードをスキップ)
             
         Returns:
             結果の辞書
         """
         try:
-            print(f"\n{'='*60}")
-            print(f"ジャンル: {genre}")
+            print(f"\n{'='*70}")
+            print(f"選択式質問動画自動生成システム")
             print(f"開始時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"{'='*60}\n")
+            print(f"{'='*70}\n")
             
-            # 1. コンテンツ生成
-            print("📝 ステップ 1/5: スクリプト生成中...")
-            generator = get_generator(genre)
-            content = generator.generate_content()
+            # 1. 質問生成
+            print("📝 ステップ 1/5: 質問生成中...")
+            question_data = self.question_generator.generate_question(category)
             
-            print(f"タイトル: {content['title']}")
-            print(f"スクリプト長: {len(content['script'])}文字")
+            print(f"カテゴリ: {question_data.get('category')}")
+            print(f"質問: {question_data.get('question')}")
+            print(f"選択肢数: {len(question_data.get('choices', []))}")
             
-            # 2. 音声合成
-            print("\n🎤 ステップ 2/5: 音声合成中...")
+            # バリデーション
+            if not self.question_generator.validate_content(question_data):
+                raise ValueError("生成された質問データが不正です")
+            
+            # 2. AI動画生成（4つの選択肢を並列生成）
+            print("\n🎬 ステップ 2/5: AI動画生成中...")
+            print("（4つの選択肢動画を並列生成します。数分かかる場合があります）\n")
+            
+            # タイムスタンプで一時ディレクトリを作成
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            audio_path = self.output_dir / f"{genre}_{timestamp}_audio.mp3"
+            session_temp_dir = self.temp_dir / timestamp
+            session_temp_dir.mkdir(exist_ok=True)
             
-            self.tts_engine.generate_for_genre(
-                text=content['script'],
-                genre=genre,
-                output_path=str(audio_path)
+            # プロンプトリストを作成
+            prompts = [
+                choice['video_prompt'] 
+                for choice in question_data['choices']
+            ]
+            
+            # 並列生成
+            choice_videos = self.ai_video_generator.generate_multiple_videos(
+                prompts=prompts,
+                output_dir=str(session_temp_dir),
+                duration=8
             )
             
-            # 3. 素材取得
-            print("\n🎨 ステップ 3/5: 背景素材取得中...")
-            try:
-                background_path = self.asset_manager.get_image_for_genre(
-                    keywords=content['keywords'],
-                    genre=genre
-                )
-            except Exception as e:
-                print(f"素材取得エラー: {e}")
-                print("デフォルト素材を使用します")
-                # フォールバック: 単色背景を生成
-                background_path = self._create_default_background(genre)
+            # 生成に成功した動画数を確認
+            success_count = sum(1 for v in choice_videos.values() if v is not None)
+            print(f"\n✅ {success_count}/4 本の選択肢動画を生成しました")
             
-            # 4. 動画生成
-            print("\n🎬 ステップ 4/5: 動画生成中...")
-            video_path = self.output_dir / f"{genre}_{timestamp}_video.mp4"
+            if success_count < 4:
+                print("⚠️  一部の動画生成に失敗しました。フォールバック処理を行います。")
             
-            self.video_creator.create_video(
-                background_path=background_path,
-                audio_path=str(audio_path),
-                script=content['script'],
-                output_path=str(video_path),
-                genre=genre
+            # 3. 最終動画作成
+            print("\n🎞️  ステップ 3/5: 最終動画作成中...")
+            final_video_path = self.output_dir / f"question_{timestamp}.mp4"
+            
+            self.video_creator.create_question_video(
+                question_data=question_data,
+                choice_videos=choice_videos,
+                output_path=str(final_video_path)
             )
+            
+            # 4. YouTubeメタデータ準備
+            title = question_data.get('question', '選択式質問')
+            description = self._create_description(question_data)
+            hashtags = "#Shorts #質問 #選択式 #あなたはどっち"
             
             result = {
-                'genre': genre,
-                'title': content['title'],
-                'video_path': str(video_path),
+                'category': question_data.get('category'),
+                'question': question_data.get('question'),
+                'video_path': str(final_video_path),
                 'success': True
             }
             
             # 5. YouTube投稿
             if not test_mode:
-                print("\n📤 ステップ 5/5: YouTube投稿中...")
+                print("\n📤 ステップ 4/5: YouTube投稿中...")
                 
                 if self.youtube_uploader is None:
                     self.youtube_uploader = YouTubeUploader()
                 
                 upload_result = self.youtube_uploader.upload_short(
-                    video_path=str(video_path),
-                    title=content['title'],
-                    description=content['description'],
-                    hashtags=content['hashtags']
+                    video_path=str(final_video_path),
+                    title=title,
+                    description=description,
+                    hashtags=hashtags
                 )
                 
                 result['video_url'] = upload_result['video_url']
                 result['video_id'] = upload_result['video_id']
                 
                 # Discord通知
-                print("\n📢 Discord通知送信中...")
+                print("\n📢 ステップ 5/5: Discord通知送信中...")
                 if self.discord_notifier is None:
                     self.discord_notifier = DiscordNotifier()
                 
                 self.discord_notifier.notify_upload_success(
                     video_url=upload_result['video_url'],
-                    title=content['title'],
-                    genre=genre
+                    title=title,
+                    genre=question_data.get('category', '質問')
                 )
             else:
-                print("\n⏭️  ステップ 5/5: テストモードのため投稿をスキップ")
+                print("\n⏭️  ステップ 4-5/5: テストモードのため投稿をスキップ")
                 result['video_url'] = "テストモード"
             
-            print(f"\n✅ 完了!")
-            print(f"動画パス: {video_path}")
+            # クリーンアップ（オプション）
+            if not test_mode:
+                print("\n🧹 一時ファイルをクリーンアップ中...")
+                self._cleanup_temp_files(session_temp_dir)
+            
+            print(f"\n{'='*70}")
+            print(f"✅ 完了!")
+            print(f"動画パス: {final_video_path}")
             if not test_mode:
                 print(f"YouTube URL: {result['video_url']}")
+            print(f"{'='*70}\n")
             
             return result
             
         except Exception as e:
             print(f"\n❌ エラーが発生しました: {e}")
+            import traceback
+            traceback.print_exc()
             
             # エラー通知
             if not test_mode and self.discord_notifier:
                 self.discord_notifier.notify_error(
                     error_message=str(e),
-                    genre=genre
+                    genre=category or "質問動画"
                 )
             
             return {
-                'genre': genre,
+                'category': category,
                 'success': False,
                 'error': str(e)
             }
     
-    def _create_default_background(self, genre: str) -> str:
+    def _create_description(self, question_data: Dict) -> str:
         """
-        デフォルトの単色背景を生成
+        YouTube用の説明文を生成
         
         Args:
-            genre: ジャンル
+            question_data: 質問データ
             
         Returns:
-            背景画像のパス
+            説明文
         """
-        from PIL import Image
+        description = f"{question_data.get('question')}\n\n"
         
-        # ジャンル別の色
-        colors = {
-            'horror': (20, 20, 30),      # ダークブルー
-            'trivia': (30, 50, 80),      # ネイビー
-            'satisfying': (80, 30, 50)   # ダークピンク
-        }
+        if 'context' in question_data:
+            description += f"{question_data['context']}\n\n"
         
-        color = colors.get(genre, (30, 30, 30))
+        description += "【選択肢】\n"
+        for choice in question_data.get('choices', []):
+            description += f"❶{choice['number']}. {choice['title']} - {choice.get('description', '')}\n"
         
-        # 1080x1920の画像を生成
-        img = Image.new('RGB', (1080, 1920), color)
+        description += "\n💬 あなたはどれを選びますか？コメント欄で教えてください！\n"
+        description += "\n👍 面白かったら高評価とチャンネル登録お願いします！\n"
         
-        output_path = self.output_dir / f"default_bg_{genre}.png"
-        img.save(output_path)
-        
-        return str(output_path)
+        return description
+    
+    def _cleanup_temp_files(self, temp_dir: Path):
+        """一時ファイルを削除"""
+        try:
+            import shutil
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+                print(f"✅ 一時ファイルを削除しました: {temp_dir}")
+        except Exception as e:
+            print(f"⚠️  一時ファイル削除エラー: {e}")
 
 
 def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(
-        description='YouTube自動投稿システム'
+        description='選択式質問動画自動生成・投稿システム'
     )
     parser.add_argument(
-        '--genre',
+        '--category',
         type=str,
-        choices=['horror', 'trivia', 'satisfying', 'random'],
-        default='random',
-        help='動画のジャンル'
+        choices=['大金獲得チャレンジ', '究極の選択', '好みタイプ診断'],
+        default=None,
+        help='質問のカテゴリ（省略時はランダム）'
     )
     parser.add_argument(
         '--test',
@@ -206,27 +233,19 @@ def main():
     
     args = parser.parse_args()
     
-    # ジャンルをランダム選択
-    if args.genre == 'random':
-        genre = random.choice(['horror', 'trivia', 'satisfying'])
-        print(f"ランダムに選択されたジャンル: {genre}")
-    else:
-        genre = args.genre
-    
     # システムを実行
-    uploader = YouTubeAutoUploader()
-    result = uploader.generate_and_upload(genre, test_mode=args.test)
+    uploader = QuestionVideoAutoUploader()
+    result = uploader.generate_and_upload(
+        category=args.category,
+        test_mode=args.test
+    )
     
     # 結果を出力
     if result['success']:
-        print("\n" + "="*60)
         print("✅ すべての処理が正常に完了しました!")
-        print("="*60)
         sys.exit(0)
     else:
-        print("\n" + "="*60)
         print("❌ 処理中にエラーが発生しました")
-        print("="*60)
         sys.exit(1)
 
 

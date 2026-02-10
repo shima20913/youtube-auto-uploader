@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build: .
+    container_name: youtube-auto-uploader
+    restart: unless-stopped
+    
+    # 環境変数（.envファイルから読み込み）
+    env_file:
+      - .env
+    
+    # ボリュームマウント（データ永続化）
+    volumes:
+      # YouTube認証ファイル
+      - ./client_secret.json:/app/client_secret.json:ro
+      - ./token.json:/app/token.json
+      
+      # データディレクトリ
+      - ./output:/app/output
+      - ./templates:/app/templates:ro
+      - ./config:/app/config:ro
+    
+    # タイムゾーン設定
+    environment:
+      - TZ=Asia/Tokyo
+    
+    # ログ設定
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # ヘルスチェック（オプション）
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
