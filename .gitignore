@@ -33,3 +33,16 @@ Thumbs.db
 
 # ログ
 *.log
+
+# フォント（Dockerfileでシステムフォントからコピー）
+fonts/
+remotion/public/fonts/
+
+# Remotion node_modules
+remotion/node_modules/
+
+# 一時・サンプル生成スクリプト
+create_dummy_videos.py
+generate_sample_image.py
+generate_sample_image_en.py
+generate_sample_video.py

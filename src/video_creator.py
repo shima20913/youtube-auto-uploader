@@ -22,10 +22,21 @@ class QuestionVideoCreator:
         Args:
             config_path: 設定ファイルのパス
         """
+        # プロジェクトルートディレクトリ
+        self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
         # 設定ファイルが存在しない場合はデフォルト設定を使用
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 self.config = yaml.safe_load(f)
+            # フォントパスを絶対パスに解決し、存在しなければ自動検索
+            if 'text_overlay' in self.config:
+                font_path = self.config['text_overlay'].get('font', '')
+                if not os.path.isabs(font_path):
+                    font_path = os.path.join(self.project_root, font_path)
+                if not os.path.exists(font_path):
+                    font_path = self._find_japanese_font()
+                self.config['text_overlay']['font'] = font_path
         else:
             self.config = self._get_default_config()
         
@@ -38,6 +49,23 @@ class QuestionVideoCreator:
         self.text_config = self.config['text_overlay']
         self.audio_config = self.config['audio']
     
+    def _find_japanese_font(self) -> str:
+        """日本語対応フォントのパスを返す"""
+        candidates = [
+            # プロジェクト内フォント（最優先）
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fonts", "NotoSansCJKjp-Bold.otf"),
+            # システムフォント
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJKjp-Bold.otf",
+            "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+            "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf",
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+        # フォールバック（英語のみ）
+        return "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
     def _get_default_config(self) -> Dict:
         """デフォルト設定を返す"""
         return {
@@ -51,11 +79,11 @@ class QuestionVideoCreator:
                 }
             },
             'text_overlay': {
-                'font': '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                'font': self._find_japanese_font(),
                 'colors': {
                     'primary': '#FFFFFF',
                     'accent': '#FFD700',
-                    'background': 'rgba(0,0,0,0.7)'
+                    'background': (0, 0, 0, 178)
                 }
             },
             'audio': {
@@ -154,13 +182,13 @@ class QuestionVideoCreator:
         # 質問用のテキストクリップ
         try:
             question_clip = TextClip(
-                question_text,
-                fontsize=80,
-                color=self.text_config['colors']['accent'],
                 font=self.text_config['font'],
+                text=question_text,
+                font_size=80,
+                color=self.text_config['colors']['accent'],
                 size=(self.width - 100, None),
                 method='caption',
-                align='center'
+                text_align='center'
             )
             question_clip = question_clip.with_position(('center', self.height * 0.35))
             question_clip = question_clip.with_duration(duration)
@@ -168,13 +196,13 @@ class QuestionVideoCreator:
             # コンテキスト用のテキストクリップ
             if context_text:
                 context_clip = TextClip(
-                    context_text,
-                    fontsize=50,
-                    color=self.text_config['colors']['primary'],
                     font=self.text_config['font'],
+                    text=context_text,
+                    font_size=50,
+                    color=self.text_config['colors']['primary'],
                     size=(self.width - 100, None),
                     method='caption',
-                    align='center'
+                    text_align='center'
                 )
                 context_clip = context_clip.with_position(('center', self.height * 0.55))
                 context_clip = context_clip.with_duration(duration)
@@ -228,7 +256,7 @@ class QuestionVideoCreator:
             if video.duration < duration:
                 video = video.with_effects([vfx.Loop(duration=duration)])
             else:
-                video = video.subclip(0, duration)
+                video = video.with_subclip(0, duration)
             
             # 縦型にリサイズ
             video = video.with_effects([vfx.Resize(height=self.height)])
@@ -255,23 +283,23 @@ class QuestionVideoCreator:
         # 番号バッジ
         try:
             number_text = TextClip(
-                f"❶{number}",
-                fontsize=100,
-                color=self.text_config['colors']['accent'],
-                font=self.text_config['font']
+                font=self.text_config['font'],
+                text=f"{number}",
+                font_size=100,
+                color=self.text_config['colors']['accent']
             )
             number_text = number_text.with_position((50, 100))
             number_text = number_text.with_duration(duration)
             
             # タイトル
             title_text = TextClip(
-                title,
-                fontsize=70,
-                color=self.text_config['colors']['primary'],
                 font=self.text_config['font'],
+                text=title,
+                font_size=70,
+                color=self.text_config['colors']['primary'],
                 size=(self.width - 200, None),
                 method='caption',
-                align='center',
+                text_align='center',
                 bg_color=self.text_config['colors']['background']
             )
             title_text = title_text.with_position(('center', self.height * 0.75))
@@ -280,13 +308,13 @@ class QuestionVideoCreator:
             # 説明文
             if description:
                 desc_text = TextClip(
-                    description,
-                    fontsize=45,
-                    color=self.text_config['colors']['primary'],
                     font=self.text_config['font'],
+                    text=description,
+                    font_size=45,
+                    color=self.text_config['colors']['primary'],
                     size=(self.width - 200, None),
                     method='caption',
-                    align='center',
+                    text_align='center',
                     bg_color=self.text_config['colors']['background']
                 )
                 desc_text = desc_text.with_position(('center', self.height * 0.85))
@@ -316,13 +344,13 @@ class QuestionVideoCreator:
         
         try:
             text_clip = TextClip(
-                text,
-                fontsize=80,
-                color='white',
                 font=self.text_config['font'],
+                text=text,
+                font_size=80,
+                color='white',
                 size=(self.width - 100, None),
                 method='caption',
-                align='center'
+                text_align='center'
             )
             text_clip = text_clip.with_position('center')
             text_clip = text_clip.with_duration(duration)
@@ -347,13 +375,13 @@ class QuestionVideoCreator:
         
         try:
             text_clip = TextClip(
-                ending_text,
-                fontsize=70,
-                color=self.text_config['colors']['accent'],
                 font=self.text_config['font'],
+                text=ending_text,
+                font_size=70,
+                color=self.text_config['colors']['accent'],
                 size=(self.width - 100, None),
                 method='caption',
-                align='center'
+                text_align='center'
             )
             text_clip = text_clip.with_position('center')
             text_clip = text_clip.with_duration(duration)

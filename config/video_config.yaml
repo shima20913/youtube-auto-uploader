@@ -7,11 +7,11 @@ video:
     ending: 5   # エン ディングの長さ（秒）
 
 text_overlay:
-  font: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+  font: "fonts/NotoSansCJKjp-Bold.otf"  # 日本語対応フォント
   colors:
     primary: "#FFFFFF"      # メインテキストの色
     accent: "#FFD700"       # アクセントカラー（金色）
-    background: "rgba(0,0,0,0.7)"  # テキスト背景色
+    background: [0, 0, 0, 178]  # テキスト背景色（半透明黒）
 
 audio:
   bgm_volume: 0.3          # BGMの音量（0.0〜1.0）
