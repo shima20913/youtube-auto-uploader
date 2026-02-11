@@ -38,7 +38,6 @@ active_questions: Dict[int, Dict] = {}
 
 # モジュール（遅延初期化）
 question_generator = None
-video_creator = None
 youtube_uploader = None
 discord_notifier = None
 
@@ -136,16 +135,12 @@ async def post_daily_question():
 
 async def post_question():
     """お題を生成してDiscordに投稿"""
-    global question_generator, video_creator
-    
+    global question_generator
+
     # モジュール初期化
     if question_generator is None:
         from question_generator import QuestionGenerator
         question_generator = QuestionGenerator()
-    
-    if video_creator is None:
-        from video_creator import QuestionVideoCreator
-        video_creator = QuestionVideoCreator()
     
     # チャンネル取得
     channel = client.get_channel(QUESTION_CHANNEL_ID)
@@ -281,34 +276,81 @@ async def handle_thread_message(message):
 async def finalize_question(thread_id: int):
     """4本揃ったら最終処理"""
     global youtube_uploader, discord_notifier
-    
+
     question_info = active_questions[thread_id]
     thread = client.get_channel(thread_id)
-    
+    question_data = question_info['question_data']
+
     await thread.send("🎬 **4本揃いました！YouTube投稿処理を開始します...**")
-    
+
     try:
         # モジュール初期化
         if youtube_uploader is None:
             from youtube_uploader import YouTubeUploader
             youtube_uploader = YouTubeUploader()
-        
+
         if discord_notifier is None:
             from discord_notifier import DiscordNotifier
             discord_notifier = DiscordNotifier()
-        
-        # 1. 動画統合
-        await thread.send("📹 動画を統合中...")
-        
+
+        # 1. 動画をRemotion publicディレクトリにコピー
+        await thread.send("📹 動画をレンダリング中（Remotion）...")
+
+        import shutil
+        project_root = Path(__file__).parent.parent
+        remotion_video_dir = project_root / "remotion" / "public" / "videos"
+        remotion_video_dir.mkdir(parents=True, exist_ok=True)
+
+        choices = question_data.get('choices', [])
+        remotion_choices = []
+        for choice in choices:
+            n = choice['number']
+            src = question_info['videos'].get(n)
+            if src and Path(src).exists():
+                dest = remotion_video_dir / f"discord_{question_info['id']}_choice_{n}.mp4"
+                shutil.copy2(src, dest)
+                video_path = f"videos/{dest.name}"
+            else:
+                video_path = f"videos/placeholder_{n}.mp4"
+            remotion_choices.append({
+                "number": n,
+                "text": choice['title'],
+                "textEn": choice['title'],  # 翻訳は後で上書き
+                "videoPath": video_path,
+            })
+
+        # 2. Gemini英訳
+        translations = _translate_to_english_sync(question_data)
+        for rc in remotion_choices:
+            rc['textEn'] = translations['choices'].get(rc['number'], rc['text'])
+
+        # 3. Remotionレンダリング
+        from quiz_video_renderer import QuizVideoRenderer
+        output_dir = project_root / "output"
+        output_dir.mkdir(exist_ok=True)
         final_video_path = VIDEO_DIR / question_info['id'] / "final.mp4"
-        
-        video_creator.create_question_video(
-            question_data=question_info['question_data'],
-            choice_videos=question_info['videos'],
-            output_path=str(final_video_path)
+        final_video_path.parent.mkdir(parents=True, exist_ok=True)
+
+        renderer = QuizVideoRenderer(remotion_dir=str(project_root / "remotion"))
+        success = renderer.render_quiz_video(
+            question=question_data.get('question', ''),
+            question_en=translations['question'],
+            choices=remotion_choices,
+            end_message="あなたはどれを選んだ？\nコメント欄で教えて！",
+            end_message_en="Which did you choose?\nTell us in the comments!",
+            output_path=str(final_video_path),
         )
-        
-        # 2. YouTube投稿
+
+        # コピーしたRemotion用動画をクリーンアップ
+        for rc in remotion_choices:
+            p = remotion_video_dir / Path(rc['videoPath']).name
+            if p.exists() and p.name.startswith('discord_'):
+                p.unlink()
+
+        if not success:
+            raise RuntimeError("Remotionレンダリングに失敗しました")
+
+        # 4. YouTube投稿
         await thread.send("📤 YouTubeに投稿中...")
         
         title = question_info['question_data']['question']
@@ -369,6 +411,46 @@ def create_youtube_description(question_data: Dict) -> str:
     description += "\n👍 面白かったら高評価とチャンネル登録お願いします！\n"
     
     return description
+
+
+def _translate_to_english_sync(question_data: dict) -> dict:
+    """Geminiで質問と選択肢を英訳する（同期版）"""
+    try:
+        import google.generativeai as genai
+        import json as _json
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        choices_ja = "\n".join(
+            f"{c['number']}. {c['title']}" for c in question_data.get("choices", [])
+        )
+        prompt = f"""Translate the following Japanese quiz content into natural English.
+Return JSON only in this format:
+{{
+  "question": "...",
+  "choices": {{
+    "1": "...",
+    "2": "...",
+    "3": "...",
+    "4": "..."
+  }}
+}}
+
+Question: {question_data.get("question", "")}
+Choices:
+{choices_ja}"""
+        response = model.generate_content(prompt)
+        content = response.text.strip()
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        data = _json.loads(content.strip())
+        choices_en = {int(k): v for k, v in data.get("choices", {}).items()}
+        return {"question": data.get("question", ""), "choices": choices_en}
+    except Exception as e:
+        print(f"  ⚠️ 翻訳失敗: {e} → 日本語をそのまま使用")
+        choices_fallback = {c["number"]: c["title"] for c in question_data.get("choices", [])}
+        return {"question": question_data.get("question", ""), "choices": choices_fallback}
 
 
 def save_active_questions():
