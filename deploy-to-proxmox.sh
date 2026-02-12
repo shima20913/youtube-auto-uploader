@@ -1,6 +1,5 @@
 #!/bin/bash
 # YouTube Auto Uploader - クイックデプロイスクリプト
-# コンテナIP: ***REMOVED***
 
 set -e
 
@@ -8,9 +7,9 @@ echo "📦 YouTube Auto Uploader - デプロイスクリプト"
 echo "=============================================="
 echo ""
 
-# 変数
-CT_IP="***REMOVED***"
-PROJECT_DIR="/home/shima09/youtube-auto-uploader"
+# 変数（環境に合わせて変更してください）
+CT_IP="${CT_IP:-<コンテナのIPアドレス>}"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "ステップ1: プロジェクトファイルをアップロード"
 echo "----------------------------------------------"
