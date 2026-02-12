@@ -109,7 +109,7 @@ class QuestionGenerator:
       "number": 1,
       "title": "選択肢のタイトル（8文字以内）",
       "description": "詳細説明（15文字程度）",
-      "video_prompt": "AI動画生成用の英語プロンプト（詳細かつ視覚的な描写、cinematic style）"
+      "video_prompt": "Sora 2 AI動画生成用の英語プロンプト。【重要】1つのシーン・1つの動作のみを描写すること。'then'/'contrasted with'/'juxtaposed with' などで複数シーンを繋げるのは禁止。その選択肢の最もインパクトある瞬間を5〜10秒の映像として表現。例: 'A person sleeping soundly in a cozy bed, soft morning light, peaceful expression, cinematic, 4K'"
     },
     ... 4つの選択肢
   ]
@@ -155,7 +155,7 @@ class QuestionGenerator:
       "number": 1,
       "title": "選択肢タイトル（8文字以内）",
       "description": "詳細説明（失うものや制約を含む、20文字程度）",
-      "video_prompt": "AI動画生成用の英語プロンプト（視覚的で印象的な描写、cinematic style）"
+      "video_prompt": "Sora 2 AI動画生成用の英語プロンプト。【重要】1つのシーン・1つの動作のみを描写すること。'then'/'contrasted with'/'juxtaposed with' などで複数シーンを繋げるのは禁止。その選択肢の核心的な映像を5〜10秒で表現。例: 'A wealthy person counting large stacks of cash alone in an empty penthouse, cold lighting, cinematic, 4K'"
     },
     ... 4つの選択肢
   ]
@@ -207,7 +207,7 @@ JSON形式のみを出力してください。
       "number": 1,
       "title": "選択肢タイトル（8文字以内）",
       "description": "詳細説明（代償や特徴を含む、20文字程度）",
-      "video_prompt": "AI動画生成用の英語プロンプト（幻想的・映画的・壮大な描写）"
+      "video_prompt": "Sora 2 AI動画生成用の英語プロンプト。【重要】1つのシーン・1つの動作のみを描写すること。'then'/'contrasted with'/'juxtaposed with' などで複数シーンを繋げるのは禁止。その選択肢の世界観を5〜10秒の幻想的・映画的映像として表現。例: 'A mage casting a powerful spell in a dark forest, glowing magical energy, dramatic lighting, cinematic, 4K'"
     },
     ... 4つの選択肢
   ]
@@ -257,7 +257,7 @@ JSON形式のみを出力してください。
       "number": 1,
       "title": "選択肢タイトル（8文字以内）",
       "description": "詳細説明（心情や行動を含む、20文字程度）",
-      "video_prompt": "AI動画生成用の英語プロンプト（感情的・映画的・リアルな人間描写）"
+      "video_prompt": "Sora 2 AI動画生成用の英語プロンプト。【重要】1つのシーン・1つの感情的瞬間のみを描写すること。'then'/'contrasted with'/'juxtaposed with' などで複数シーンを繋げるのは禁止。その選択肢の感情や行動を5〜10秒の映像として表現。例: 'A person confessing feelings to someone on a park bench at sunset, nervous but sincere expression, cinematic, 4K'"
     },
     ... 4つの選択肢
   ]
