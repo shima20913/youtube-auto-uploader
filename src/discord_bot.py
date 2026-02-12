@@ -204,17 +204,15 @@ def create_question_embed(question_data: Dict) -> discord.Embed:
     )
     
     for choice in question_data['choices']:
-        prompt = choice['video_prompt']
-        if len(prompt) > 300:
-            prompt = prompt[:297] + "..."
-        
+        circled = ['①', '②', '③', '④']
+        n = choice['number']
         embed.add_field(
-            name=f"❶{choice['number']}. {choice['title']}",
-            value=f"*{choice.get('description', '')}*\n\n**Sora 2 Prompt:**\n```\n{prompt}\n```",
+            name=f"{circled[n-1]} {choice['title']}",
+            value=f"*{choice.get('description', '')}*",
             inline=False
         )
-    
-    embed.set_footer(text="スレッドに動画を投稿してください")
+
+    embed.set_footer(text="スレッドにプロンプトと動画を投稿してください")
     embed.timestamp = datetime.now(TIMEZONE)
     
     return embed
