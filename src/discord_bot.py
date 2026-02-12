@@ -166,22 +166,17 @@ async def post_question():
     )
     
     # 説明投稿
-    instructions = """
-このスレッドに **Sora 2で生成した4本の動画** を投稿してください。
-
-**投稿方法:**
-1. 4つの動画ファイルを選択
-2. このスレッドにドラッグ&ドロップ
-3. 送信
-
-**注意:**
-- 順番通りに投稿してください（選択肢1→2→3→4）
-- ファイル名は何でもOKです
-- 4本揃ったら自動でYouTube投稿します！
-
-現在の進捗: **0/4本**
-"""
+    instructions = "Sora 2で以下のプロンプトで動画を生成して、順番に投稿してください（**選択肢1→2→3→4**）\n4本揃ったら自動でYouTube投稿します！"
     await thread.send(instructions)
+
+    # 各選択肢のプロンプトを個別メッセージで送信（スマホでコピーしやすくする）
+    circled = ['①', '②', '③', '④']
+    for choice in question_data.get('choices', []):
+        n = choice['number']
+        prompt = choice.get('video_prompt', '')
+        await thread.send(
+            f"**{circled[n-1]} {choice['title']}**\n```\n{prompt}\n```"
+        )
     
     # データ保存
     question_id = f"{today}_{message.id}"
