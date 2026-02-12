@@ -358,7 +358,7 @@ async def finalize_question(thread_id: int):
         
         # 3. 完了通知
         video_url = upload_result['video_url']
-        
+
         success_embed = discord.Embed(
             title="✅ YouTube投稿完了！",
             description=f"**{title}**",
@@ -366,15 +366,44 @@ async def finalize_question(thread_id: int):
             url=video_url
         )
         success_embed.add_field(name="🔗 動画URL", value=video_url, inline=False)
-        
+
         await thread.send(embed=success_embed)
-        
+
         # Webhook通知
         discord_notifier.notify_upload_success(
             video_url=video_url,
             title=title,
             genre=question_info['question_data'].get('category', '質問')
         )
+
+        # 4. Instagram投稿（設定がある場合のみ）
+        if os.getenv("INSTAGRAM_USERNAME") and os.getenv("INSTAGRAM_PASSWORD"):
+            await thread.send("📸 Instagramに投稿中...")
+            try:
+                from instagram_uploader import InstagramUploader
+                ig = InstagramUploader()
+                ig_caption = f"{title}\n\n{description}\n\n#質問 #選択式 #あなたはどっち #Shorts"
+                ig_url = ig.upload_reel(str(final_video_path), ig_caption)
+                await thread.send(f"✅ Instagram投稿完了！\n{ig_url}")
+            except Exception as e:
+                await thread.send(f"⚠️ Instagram投稿失敗: {str(e)}")
+                print(f"Instagram投稿エラー: {e}")
+
+        # 5. TikTok投稿（設定がある場合のみ）
+        if os.getenv("TIKTOK_SESSION_ID"):
+            await thread.send("🎵 TikTokに投稿中...")
+            try:
+                from tiktok_uploader import TikTokUploader
+                tt = TikTokUploader()
+                tt.upload_video(
+                    str(final_video_path),
+                    title=title,
+                    tags=["質問", "選択式", "あなたはどっち", "shorts"]
+                )
+                await thread.send("✅ TikTok投稿完了！")
+            except Exception as e:
+                await thread.send(f"⚠️ TikTok投稿失敗: {str(e)}")
+                print(f"TikTok投稿エラー: {e}")
         
         # クリーンアップ
         del active_questions[thread_id]
