@@ -170,13 +170,13 @@ async def post_question():
     await thread.send(instructions)
 
     # 各選択肢のプロンプトを個別メッセージで送信（スマホでコピーしやすくする）
+    # タイトルとプロンプトを別メッセージにすることで、プロンプトだけ長押しコピーできる
     circled = ['①', '②', '③', '④']
     for choice in question_data.get('choices', []):
         n = choice['number']
         prompt = choice.get('video_prompt', '')
-        await thread.send(
-            f"**{circled[n-1]} {choice['title']}**\n```\n{prompt}\n```"
-        )
+        await thread.send(f"**{circled[n-1]} {choice['title']}**")
+        await thread.send(prompt)
     
     # データ保存
     question_id = f"{today}_{message.id}"
